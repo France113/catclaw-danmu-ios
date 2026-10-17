@@ -20,7 +20,9 @@ public sealed class DanmuLine
     /// <summary>
     /// danmu_api 兼容服务端地址（对位 <c>danmu_api</c> v1.21.0 —— 自托管弹幕聚合服务，
     /// 聚合 douban/360/renren/hanjutv/bilibili/youku/tencent/iqiyi/mgtv/sohu/bahamut 等 23 个源；
-    /// 客户端协议完全兼容弹弹Play：<c>{base}/api/v2/search/episodes</c> + <c>{base}/api/v2/comment/{id}</c>）。
+    /// 请求路径与弹弹Play 一致：<c>{base}/api/v2/search/episodes</c> + <c>{base}/api/v2/comment/{id}</c>，
+    /// 但<b>响应信封不同</b>：danmu_api 把 animes/comments 放根层，官方弹弹Play 包在 data 下，
+    /// <see cref="Payload"/> 已做双向兼容）。
     /// 为空表示官方弹弹Play <c>api.dandanplay.net</c>。
     /// </summary>
     public string? ApiBase { get; init; }
@@ -245,24 +247,41 @@ public static class DanmuSearchService
     {
         try
         {
-            var animes = doc.RootElement
-                .GetProperty("data").GetProperty("animes");
-            if (animes.GetArrayLength() == 0) return null;
+            // 信封兼容：官方弹弹Play = {data:{animes:[…]}}；danmu_api 及自建分支 = 根层 {errorCode:0,animes:[…]}
+            var animes = Payload(doc, "animes");
+            if (animes is null || animes.Value.ValueKind != JsonValueKind.Array
+                || animes.Value.GetArrayLength() == 0) return null;
 
-            var anime = animes.EnumerateArray()
+            var anime = animes.Value.EnumerateArray()
                 .FirstOrDefault(a => TryStr(a, "animeTitle") is { } t && t.Contains(name, StringComparison.OrdinalIgnoreCase));
-            if (anime.ValueKind == JsonValueKind.Undefined) anime = animes[0];
+            if (anime.ValueKind == JsonValueKind.Undefined) anime = animes.Value[0];
 
             var episodes = anime.GetProperty("episodes");
             if (episodes.GetArrayLength() == 0) return null;
 
+            // episodeNumber 官方是字符串、danmu_api 源码里是数字（index+1），ElemStr 两者都吃
             var hit = episodes.EnumerateArray()
-                .FirstOrDefault(e => MatchEpisode(TryStr(e, "episodeNumber"), episode));
+                .FirstOrDefault(e => e.TryGetProperty("episodeNumber", out var en)
+                    && MatchEpisode(ElemStr(en), episode));
+            // danmu_api 的 episodes 不带 episodeNumber（服务端已按 episode 参数预过滤），
+            // 未命中时从「第05集」这类标题里提取集数再兜底一次
+            if (hit.ValueKind == JsonValueKind.Undefined)
+                hit = episodes.EnumerateArray()
+                    .FirstOrDefault(e => MatchEpisodeTitleNumber(TryStr(e, "episodeTitle"), episode));
             if (hit.ValueKind == JsonValueKind.Undefined) hit = episodes[0];
 
             return hit.GetProperty("episodeId").GetInt64();
         }
         catch { return null; }
+    }
+
+    /// <summary>从「第05集」「EP5」这类标题提取集数与目标比较（danmu_api episodes 无 episodeNumber 字段）。</summary>
+    static bool MatchEpisodeTitleNumber(string? title, string want)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return false;
+        foreach (var m in System.Text.RegularExpressions.Regex.Matches(title, @"\d+"))
+            if (long.TryParse(m.Value, out var n) && long.TryParse(want, out var w) && n == w) return true;
+        return false;
     }
 
     static bool MatchEpisode(string? actual, string want)
@@ -278,8 +297,10 @@ public static class DanmuSearchService
         var cues = new List<DanmuCue>();
         try
         {
-            var comments = doc.RootElement.GetProperty("data").GetProperty("comments");
-            foreach (var c in comments.EnumerateArray())
+            // 信封兼容：官方弹弹Play = {data:{comments:[…]}}；danmu_api = 根层 {count:N,comments:[…]}
+            var comments = Payload(doc, "comments");
+            if (comments is null || comments.Value.ValueKind != JsonValueKind.Array) return cues;
+            foreach (var c in comments.Value.EnumerateArray())
             {
                 var p = TryStr(c, "p") ?? "";
                 var m = TryStr(c, "m") ?? "";
@@ -458,6 +479,22 @@ public static class DanmuSearchService
     }
 
     // ─────────────────────── 公共小工具 ───────────────────────
+
+    /// <summary>
+    /// 取响应里的业务节点，兼容两种信封：官方弹弹Play 包在 <c>data</c> 下
+    /// （<c>{data:{animes:[…]}}</c>）；danmu_api 及其自建分支（LogVar 等）直接放根层
+    /// （<c>{errorCode:0,success:true,animes:[…]}</c> / <c>{count:N,comments:[…]}</c>）。
+    /// </summary>
+    static JsonElement? Payload(JsonDocument doc, string prop)
+    {
+        var root = doc.RootElement;
+        if (root.ValueKind != JsonValueKind.Object) return null;
+        if (root.TryGetProperty("data", out var data)
+            && data.ValueKind == JsonValueKind.Object
+            && data.TryGetProperty(prop, out var inner))
+            return inner;
+        return root.TryGetProperty(prop, out var outer) ? outer : null;
+    }
 
     /// <summary>p 段不完整时按默认样式构造（右滚 / 25px / 白），只丢时间都解不出的。</summary>
     static DanmuCue? MakeCue(string p, string text)

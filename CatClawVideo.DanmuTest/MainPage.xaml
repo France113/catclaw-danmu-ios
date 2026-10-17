@@ -25,12 +25,12 @@
 
             <Label Text="danmu_API 服务地址" FontSize="13" FontAttributes="Bold" />
             <Entry x:Name="ApiBaseEntry" Text="https://api.danmu.icu" ClearButtonVisibility="WhileEditing" />
-            <Label Text="danmu_api 自建服务地址（协议兼容弹弹Play，服务端聚合 23 个源）。默认公共实例；自建后填自己的地址，如 http://192.168.1.5:9321"
+            <Label Text="danmu_api 自建服务地址（协议兼容弹弹Play，服务端聚合 23 个源）。默认公共实例；自建后填自己的地址，支持带路径前缀（如 https://dm.11031.xyz/87654321）。⚠️ 用域名、别用 IP：证书只签给域名，填 IP 会因主机名不匹配被拒"
                    FontSize="11" TextColor="Gray" />
 
             <Label Text="自定义线路（可选，可自己加弹幕源）" FontSize="13" FontAttributes="Bold" />
-            <Entry x:Name="UserLinesEntry" Placeholder="名称@地址模板;名称@地址模板" />
-            <Label Text="格式：线路名@地址;线路名2@地址2。模板里 {videoUrl} 会被替换成视频页地址（例：虾米2@https://dm.qinqin.net/?ac=dm&amp;url={videoUrl}）。danmu_api 服务：名称@danmuapi:https://地址。填了与内置线路合并，下拉直接选。"
+            <Entry x:Name="UserLinesEntry" Placeholder="名称@danmuapi:https://地址" />
+            <Label Text="danmu_api 自建服务（含 LogVar 弹幕API）：线路名@danmuapi:https://地址，如 uz@danmuapi:https://dm.11031.xyz/87654321。聚合线路：线路名@地址模板，{videoUrl} 替换为视频页地址。多条用 ; 分隔，与内置线路合并后下拉直接选。"
                    FontSize="11" TextColor="Gray" />
 
             <Button x:Name="SearchButton"
