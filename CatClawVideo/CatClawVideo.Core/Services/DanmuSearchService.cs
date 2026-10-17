@@ -279,7 +279,8 @@ public static class DanmuSearchService
     static bool MatchEpisodeTitleNumber(string? title, string want)
     {
         if (string.IsNullOrWhiteSpace(title)) return false;
-        foreach (var m in System.Text.RegularExpressions.Regex.Matches(title, @"\d+"))
+        // MatchCollection 是非泛型枚举，foreach 需显式声明 Match（var 会推成 object）
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(title, @"\d+"))
             if (long.TryParse(m.Value, out var n) && long.TryParse(want, out var w) && n == w) return true;
         return false;
     }
