@@ -170,7 +170,7 @@ const PREFIX = '/spider/' + SITE_KEY + '/3';
 
 async function start(config) {
     server.config = config || {};
-    httpServer = http.createServer(async (req, res) => {
+    const handler = async (req, res) => {
         try {
             const u = new URL(req.url, 'http://127.0.0.1');
             const path = u.pathname;
@@ -195,7 +195,20 @@ async function start(config) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: e.message }));
         }
-    });
+    };
+    // 端口发现：官方 bundle（CatPawOpen）用壳注入的 catServerFactory 建服务，
+    // 壳通过工厂持有实例从而知道端口。探针优先走同一条路，拿不到再退回原生
+    // http.createServer（DEV_HTTP_PORT 或系统随机端口）。
+    if (typeof catServerFactory === 'function') {
+        try {
+            httpServer = catServerFactory(handler);
+            console.log('[probe] server created via catServerFactory');
+        } catch (e) {
+            console.log('[probe] catServerFactory failed, fallback to http:', e.message);
+            httpServer = null;
+        }
+    }
+    if (!httpServer) httpServer = http.createServer(handler);
     httpServer.listen({ port: process.env.DEV_HTTP_PORT || 0, host: '127.0.0.1' });
     console.log('[probe] server started, site = ' + SITE_NAME);
 }
