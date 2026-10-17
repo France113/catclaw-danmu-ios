@@ -1,0 +1,9 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.ipa
+Payload/
+cert.p12
+profile.mobileprovision

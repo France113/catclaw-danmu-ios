@@ -1,0 +1,88 @@
+name: build-unsigned-ipa
+
+# 为 TrollStore（巨魔）构建**未签名** IPA。
+# 巨魔装未签名 IPA 永久有效：不需要 Apple 账号 / 证书 / 描述文件 / UDID，没有 7 天限制。
+# 设备前提：iOS 14.0–16.6.1（或 16.7 RC / 17.0），TrollStore 设置里已 Install ldid。
+#
+# 用法：Actions → build-unsigned-ipa → Run workflow → 下载 artifact（约 10~15 分钟）
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    # xcode-27 镜像（macOS 27.0.1）：默认 /Applications/Xcode.app = Xcode 27.0。
+    # dotnet workload install maui 走 CDN 最新清单，解析到 iOS 27.0.10722 包
+    # （要求 Xcode 27.0）；macos-15/26 镜像最高只有 26.x，装不上这个包。
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v4
+
+      # .NET 10 GA，精确钉 10.0.100（不用 10.0.x 通配符，保证可复现）。
+      # workload 包版本由 CDN 清单决定（iOS 27 包），与镜像的 Xcode 27.0 匹配。
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.100'
+
+      - name: Install MAUI workload
+        run: dotnet workload install maui
+
+      # EnableCodeSigning=false：跳过 codesign，产出未签名 .app（巨魔用 ldid 假签）
+      - name: Build unsigned app
+        run: |
+          dotnet publish CatClawVideo.DanmuTest/CatClawVideo.DanmuTest.csproj \
+            -f net10.0-ios -c Release \
+            -p:RuntimeIdentifier=ios-arm64 \
+            -p:EnableCodeSigning=false \
+            -p:CodesignRequireProvisioningProfile=false \
+            -o "$PWD/out"
+
+      # 诊断用：看看 publish 输出目录里到底有什么
+      - name: List publish outputs
+        run: ls -la out/ | head -40
+
+      # 诊断用：打印产物的最低系统版本。装机后打不开 / 装不上，先看这个数字
+      # 是否大于你设备的 iOS 版本。非关键步骤，失败不影响出包。
+      - name: Show MinimumOSVersion
+        continue-on-error: true
+        run: |
+          PLIST=$(find out -name Info.plist 2>/dev/null | head -1)
+          echo "plist: $PLIST"
+          if [ -n "$PLIST" ]; then
+            /usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" "$PLIST" || echo "(MinimumOSVersion 键不存在，跳过)"
+          fi
+
+      # iOS ATS 例外：允许自建 danmu_api 走局域网明文 http://（公共实例是 https，无副作用）。
+      # publish 产出的 IPA 是 zip：解压 → PlistBuddy 写 NSAppTransportSecurity → 重压。
+      - name: Patch ATS for self-hosted danmu_api
+        run: |
+          set -e
+          IPA=$(ls out/*.ipa | head -1)
+          if [ -z "$IPA" ]; then echo "no ipa, skip"; exit 0; fi
+          rm -rf ipa_tmp && mkdir ipa_tmp && cd ipa_tmp
+          unzip -q "../$IPA"
+          APP=$(ls -d Payload/*.app | head -1)
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$APP/Info.plist" || true
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$APP/Info.plist" || true
+          rm "../$IPA"
+          zip -qr "../$IPA" Payload
+          echo "ATS patched: $(basename "$IPA")"
+
+      # dotnet publish 已直接产出 out/*.ipa（标准 Payload/xxx.app 结构，巨魔可直接装）；
+      # 若某天 SDK 行为变化不再产 IPA，这里用 Payload 结构兜底重组。
+      - name: Package IPA (fallback)
+        run: |
+          set -e
+          if ls out/*.ipa >/dev/null 2>&1; then
+            echo "publish 已产出 IPA，跳过重组"
+          else
+            mkdir -p Payload
+            cp -r out/*.app Payload/
+            zip -qr CatClawVideo-DanmuTest-unsigned.ipa Payload
+            mv CatClawVideo-DanmuTest-unsigned.ipa out/
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CatClawVideo-DanmuTest-unsigned-ipa
+          path: out/*.ipa

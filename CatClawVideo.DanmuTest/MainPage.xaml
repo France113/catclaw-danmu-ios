@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawVideo.DanmuTest.MainPage"
+             Title="uz 弹幕插件 · 真机测试">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="10">
+
+            <Label Text="uz影视 弹幕插件移植验证"
+                   FontSize="20" FontAttributes="Bold" />
+            <Label Text="搜索逻辑为 DanmuSearchService（C# 移植 uz danMu.js / danMu3.js 的 searchDanMu）。输入片名与集数，选择线路后搜索，下方直接展示解析后的弹幕。"
+                   FontSize="12" TextColor="Gray" />
+
+            <BoxView HeightRequest="1" Color="LightGray" />
+
+            <Label Text="片名" FontSize="13" FontAttributes="Bold" />
+            <Entry x:Name="NameEntry" Text="斗罗大陆" ClearButtonVisibility="WhileEditing" />
+
+            <Label Text="集数（电影留空）" FontSize="13" FontAttributes="Bold" />
+            <Entry x:Name="EpEntry" Text="1" Keyboard="Numeric" />
+
+            <Label Text="弹幕线路" FontSize="13" FontAttributes="Bold" />
+            <Picker x:Name="LinePicker" Title="选择线路" />
+
+            <Label Text="danmu_API 服务地址" FontSize="13" FontAttributes="Bold" />
+            <Entry x:Name="ApiBaseEntry" Text="https://api.danmu.icu" ClearButtonVisibility="WhileEditing" />
+            <Label Text="danmu_api 自建服务地址（协议兼容弹弹Play，服务端聚合 23 个源）。默认公共实例；自建后填自己的地址，如 http://192.168.1.5:9321"
+                   FontSize="11" TextColor="Gray" />
+
+            <Label Text="自定义线路（可选，可自己加弹幕源）" FontSize="13" FontAttributes="Bold" />
+            <Entry x:Name="UserLinesEntry" Placeholder="名称@地址模板;名称@地址模板" />
+            <Label Text="格式：线路名@地址;线路名2@地址2。模板里 {videoUrl} 会被替换成视频页地址（例：虾米2@https://dm.qinqin.net/?ac=dm&amp;url={videoUrl}）。danmu_api 服务：名称@danmuapi:https://地址。填了与内置线路合并，下拉直接选。"
+                   FontSize="11" TextColor="Gray" />
+
+            <Button x:Name="SearchButton"
+                    Text="搜索弹幕"
+                    Clicked="OnSearchClicked"
+                    BackgroundColor="#2E5BFF" />
+
+            <ActivityIndicator x:Name="Spinner"
+                               IsRunning="False"
+                               IsVisible="False"
+                               HorizontalOptions="Center" />
+
+            <Label x:Name="StatusLabel"
+                   FontSize="14"
+                   FontAttributes="Bold"
+                   Text="等待搜索…" />
+
+            <VerticalStackLayout x:Name="ResultLayout" Spacing="4" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

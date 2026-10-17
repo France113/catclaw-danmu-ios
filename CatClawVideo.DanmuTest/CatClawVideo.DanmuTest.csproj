@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0-ios</TargetFramework>
+		<OutputType>Exe</OutputType>
+		<RootNamespace>CatClawVideo.DanmuTest</RootNamespace>
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<ApplicationTitle>弹幕测试</ApplicationTitle>
+		<ApplicationId>com.catclaw.danmutest</ApplicationId>
+		<ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
+		<ApplicationVersion>1</ApplicationVersion>
+
+		<!-- TrollStore（巨魔）安装未签名 IPA，设备系统覆盖 iOS 15 ~ 17.0。
+		     .NET 10 MAUI 的 iOS 地板为 15.0，正好覆盖；
+		     若巨魔设备是 iOS 14，需同时下调此处并换更低 MAUI 基线。 -->
+		<SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+
+		<!-- 真机 sideload 调试工具：不上 App Store，不需要 ATS 之外的额外权利，
+		     所有弹幕接口均为 HTTPS，无需开 NSAllowsArbitraryLoads。 -->
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+	</ItemGroup>
+
+	<!-- 弹幕核心：直接内联编译 CatClawVideo.Core 的三个零依赖源文件。
+	     这样本工程不依赖 CatClaw.Shared / CatClaw.Qemu 等同级仓库（当前工作区没有它们），
+	     可独立编译出 IPA 做真机验证。源文件与主仓保持同一份，逻辑改动在主仓进行。 -->
+	<ItemGroup>
+		<Compile Include="..\CatClawVideo\CatClawVideo.Core\Services\DanmuSearchService.cs" LinkBase="Core\Services" />
+		<Compile Include="..\CatClawVideo\CatClawVideo.Core\Services\DanmuParser.cs" LinkBase="Core\Services" />
+		<Compile Include="..\CatClawVideo\CatClawVideo.Core\Services\UserAgents.cs" LinkBase="Core\Services" />
+	</ItemGroup>
+
+</Project>
